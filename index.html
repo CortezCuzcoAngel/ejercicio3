@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ejemplo 3 · Carrito de Compras Offline con IndexedDB</title>
+<style>
+  :root{
+    --panel: #151b23;
+    --panel-2: #1c2430;
+    --border: #2a3441;
+    --cyan-dim: #414f4d;
+    --amber: #fbbf24;
+    --text: #e6edf3;
+    --text-dim: #8b98a5;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--cyan-dim);    
+    color: var(--text);
+    font-family: var(--sans);
+    padding: 32px 20px 60px;
+    min-height:100vh;
+  }
+  .wrap{ max-width: 1080px; margin: 0 auto; }
+
+  header{ margin-bottom: 28px; }
+  .eyebrow{
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{ content:'●'; color:#3fb950; font-size:10px; }
+  h1{
+    font-size: clamp(24px, 4vw, 34px);
+    margin: 8px 0 6px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .subtitle{ color: var(--text-dim); font-size: 15px; max-width: 640px; line-height:1.5;}
+
+  .status{
+    display:inline-flex; align-items:center; gap:8px;
+    margin-top:16px; padding:8px 14px;
+    background: var(--panel-2); border:1px solid var(--border);
+    border-radius: 20px; font-family: var(--mono); font-size: 13px;
+    color: var(--cyan);
+  }
+
+  .schema{
+    margin-top: 20px;
+    display:grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .schema-card{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .schema-card b{ color: var(--text); display:block; margin-bottom:4px; font-size:13px;}
+  .schema-card .fields{ color: var(--amber); }
+  .schema-card ul{ margin: 8px 0 0; padding-left: 18px; }
+  .schema-card li{ margin-bottom: 02px; }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 22px;
+    margin-top: 30px;
+  }
+  @media (max-width: 780px){ .grid{ grid-template-columns: 1fr; } }
+
+  section.panel{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+  }
+  section.panel h2{
+    margin:0 0 16px;
+    font-size: 16px;
+    display:flex; align-items:center; gap:8px;
+  }
+
+  .productos-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .producto-card{
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    text-align:center;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  .producto-card:hover{ transform: translateY(-3px); border-color: var(--cyan-dim); }
+  .producto-card img{
+    width: 100%; aspect-ratio: 1/1; object-fit: cover;
+    border-radius: 8px; margin-bottom: 10px; display:block;
+    background:#0a0e13;
+  }
+  .producto-card h3{ margin: 0 0 4px; font-size: 14px; }
+  .producto-card .precio{ color: var(--amber); font-family: var(--mono); font-weight:600; margin:0 0 10px; font-size:13px;}
+  .add-btn{
+    width:100%; padding: 8px 10px;
+    background: var(--cyan-dim); color: var(--cyan);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 7px; cursor:pointer;
+    font-size: 12.5px; font-weight: 600;
+    transition: background .15s;
+  }
+  .add-btn:hover{ background: #2a6b60; }
+  .add-btn:active{ transform: scale(.97); }
+
+  .carrito-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 10px 0; border-bottom: 1px dashed var(--border);
+    font-size: 14px;
+  }
+  .carrito-item:last-child{ border-bottom:none; }
+  .carrito-item span:first-child{ color: var(--text); }
+  .carrito-item span:last-child{ font-family: var(--mono); color: var(--amber); }
+  .vacio{ color: var(--text-dim); font-size: 13.5px; padding: 12px 0; text-align:center; }
+
+  #carrito-total{
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+    text-align: right; font-size: 16px; color: var(--cyan);
+    font-family: var(--mono);
+    min-height: 22px;
+  }
+
+  .vaciar-btn{
+    margin-top: 16px; width:100%; padding: 10px;
+    background: transparent; border: 1px solid #b5533533;
+    color: #ff8a65; border-radius: 8px; cursor:pointer;
+    font-size: 13px; font-weight:600; letter-spacing:.02em;
+  }
+  .vaciar-btn:hover{ background: #b5533518; }
+
+  details.log-panel{
+    margin-top: 26px;
+    background: #0a0e13;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow:hidden;
+  }
+  details.log-panel summary{
+    padding: 14px 18px; cursor:pointer;
+    font-family: var(--mono); font-size: 13px;
+    color: var(--cyan); user-select:none;
+    list-style: none;
+  }
+  details.log-panel summary::-webkit-details-marker{ display:none; }
+  details.log-panel summary::before{ content:'▸ '; }
+  details.log-panel[open] summary::before{ content:'▾ '; }
+  #log{
+    margin:0; padding: 4px 18px 18px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.9;
+    color: var(--text-dim); max-height: 260px; overflow-y:auto;
+    white-space: pre-wrap;
+  }
+  #log .t{ color:#4a5563; }
+  #log .op{ color: var(--cyan); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Carrito de compras offline</h1>
+    <p class="subtitle">
+      Base de datos <strong>TiendaDB</strong> que guarda los productos y el carrito de compras.
+      La información permanece guardada aunque se cierre la página.
+    </p>
+    <div class="status" id="status">Inicializando IndexedDB…</div>
+  </header>
+
+  <div class="schema">
+    <div class="schema-card">
+      <b>📦 Productos</b>
+      Guarda la información de los productos de la tienda.
+    </div>
+    <div class="schema-card">
+      <b>🛒 Carrito</b>
+      Guarda los productos que el usuario agrega para comprar.
+      <ul>
+        <li>ID del registro</li>
+        <li>ID del producto</li>
+        <li>Cantidad</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>🗂️ Catálogo</h2>
+      <div class="productos-grid" id="productos-list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>🛍️ Tu carrito</h2>
+      <div id="carrito-list"><p class="vacio">Cargando…</p></div>
+      <div id="carrito-total"></div>
+      <button class="vaciar-btn" id="vaciar-btn">Vaciar carrito</button>
+    </section>
+  </div>
+
+  <details class="log-panel" open>
+    <summary>Log de operaciones IndexedDB (para seguir el flujo paso a paso)</summary>
+    <pre id="log"></pre>
+  </details>
+
+</div>
+
+<script>
+const DB_NAME = 'TiendaDB';
+const DB_VERSION = 1;
+let db;
+
+// ---------- formato de hora ----------
+function formatearHora(fecha){
+  let horas = fecha.getHours();
+  const minutos = fecha.getMinutes().toString().padStart(2, '0');
+  const turno = horas >= 12 ? 'PM' : 'AM';
+  horas = horas % 12;
+  if (horas === 0) horas = 12;
+  return `${horas}:${minutos} ${turno}`;
+}
+
+function log(msg){
+  const el = document.getElementById('log');
+  const time = formatearHora(new Date());
+  el.innerHTML += `<span class="t">[${time}]</span> ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(msg){
+  document.getElementById('status').textContent = msg;
+}
+
+// ---------- 1. abrir / crear la base de datos ----------
+function initDB(){
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    // Se dispara SOLO cuando la BD no existe 
+    request.onupgradeneeded = (event) => {
+      const _db = event.target.result;
+      log('Es la primera vez que se abre esta tienda: se están preparando los espacios de almacenamiento.');
+
+      if (!_db.objectStoreNames.contains('productos')){
+        const productosStore = _db.createObjectStore('productos', { keyPath: 'id' });
+        productosStore.createIndex('nombre', 'nombre', { unique: false });
+        log('Se creó el espacio donde se guardarán los <b>productos</b>.');
+      }
+
+      if (!_db.objectStoreNames.contains('carrito')){
+        const carritoStore = _db.createObjectStore('carrito', { keyPath: 'id', autoIncrement: true });
+        carritoStore.createIndex('productoId', 'productoId', { unique: false });
+        log('Se creó el espacio donde se guardará el <b>carrito</b> del usuario.');
+      }
+    };
+
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      log('Conexión con la base de datos establecida correctamente.');
+      resolve(db);
+    };
+
+    request.onerror = (event) => {
+      log('❌ Ocurrió un error al abrir la base de datos.');
+      reject(event.target.error);
+    };
+  });
+}
+
+
+// ---------- 2. obtener la imagen de cada producto como Blob ----------
+async function obtenerImagenBlob(ruta, textoRespaldo, c1, c2, icono){
+  try{
+    const respuesta = await fetch(ruta);
+    if (!respuesta.ok) throw new Error('no encontrada');
+    return await respuesta.blob();
+  } catch(err){
+    log('⚠️ No se encontró "' + ruta + '", se usó una imagen de relleno.');
+    return generarImagenRelleno(textoRespaldo, c1, c2, icono);
+  }
+}
+
+function generarImagenRelleno(texto, c1, c2, icono){
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 240; canvas.height = 240;
+    const ctx = canvas.getContext('2d');
+
+    const grad = ctx.createLinearGradient(0, 0, 240, 240);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 240, 240);
+
+    ctx.font = '96px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(icono, 120, 104);
+
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillText(texto, 120, 190);
+
+    canvas.toBlob((blob) => resolve(blob), 'image/png');
+  });
+}
+
+// ---------- 3. precargar productos (solo la primera vez) ----------
+function seedProductos(){
+  return new Promise((resolve) => {
+    const tx = db.transaction('productos', 'readonly');
+    const store = tx.objectStore('productos');
+    const countReq = store.count();
+
+    countReq.onsuccess = async () => {
+      if (countReq.result > 0){
+        resolve();
+        return;
+      }
+
+
+      const catalogo = [
+        { id: 1, nombre: 'Laptop',       precio: 2500, ruta: 'img/laptop.webp',      c1:'#164e63', c2:'#5eead4', icon:'💻' },
+        { id: 2, nombre: 'Auriculares',  precio: 150,  ruta: 'img/audiculares.webp', c1:'#78350f', c2:'#fbbf24', icon:'🎧' },
+        { id: 3, nombre: 'Mochila',      precio: 90,   ruta: 'img/mochila.webp',     c1:'#14532d', c2:'#4ade80', icon:'🎒' },
+        { id: 4, nombre: 'Zapatillas',   precio: 180,  ruta: 'img/zapatillas.webp',  c1:'#581c87', c2:'#c084fc', icon:'👟' },
+      ];
+
+      for (const p of catalogo){
+        const blob = await obtenerImagenBlob(p.ruta, p.nombre, p.c1, p.c2, p.icon);
+        await addProducto({ id: p.id, nombre: p.nombre, precio: p.precio, imagen: blob });
+      }
+      log('✅ Se cargaron ' + catalogo.length + ' productos con sus imágenes.');
+      resolve();
+    };
+  });
+}
+
+function addProducto(producto){
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('productos', 'readwrite');
+    tx.objectStore('productos').add(producto);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ---------- 4. helpers genéricos ----------
+function getAll(store){
+  return new Promise((resolve, reject) => {
+    const r = store.getAll();
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+function getOne(store, key){
+  return new Promise((resolve, reject) => {
+    const r = store.get(key);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+// ---------- 5. pintar el catálogo ----------
+async function cargarCatalogo(){
+  const tx = db.transaction('productos', 'readonly');
+  const productos = await getAll(tx.objectStore('productos'));
+  const cont = document.getElementById('productos-list');
+  cont.innerHTML = '';
+
+  productos.forEach(p => {
+    const url = URL.createObjectURL(p.imagen);
+    const card = document.createElement('div');
+    card.className = 'producto-card';
+    card.innerHTML = `
+      <img src="${url}" alt="${p.nombre}">
+      <h3>${p.nombre}</h3>
+      <p class="precio">S/ ${p.precio.toFixed(2)}</p>
+      <button class="add-btn" data-id="${p.id}">Agregar al carrito</button>
+    `;
+    cont.appendChild(card);
+  });
+
+  cont.querySelectorAll('.add-btn').forEach(btn => {
+    btn.addEventListener('click', () => agregarAlCarrito(Number(btn.dataset.id)));
+  });
+}
+
+// ---------- 6. la parte clave: transacción combinada sobre 2 stores ----------
+function agregarAlCarrito(productoId){
+  const tx = db.transaction(['productos', 'carrito'], 'readwrite');
+  const productosStore = tx.objectStore('productos');
+  const carritoStore = tx.objectStore('carrito');
+  const indiceProductoId = carritoStore.index('productoId');
+
+  const getProducto = productosStore.get(productoId);
+
+  getProducto.onsuccess = () => {
+    const producto = getProducto.result;
+    if (!producto){
+      log('❌ No se encontró ese producto en el catálogo.');
+      return;
+    }
+// se busca por índice
+    const buscarExistente = indiceProductoId.getAll(productoId);
+    buscarExistente.onsuccess = () => {
+      const items = buscarExistente.result;
+
+      if (items.length > 0){
+        const item = items[0];
+        item.cantidad += 1;
+        carritoStore.put(item); // actualizar cantidad
+        log(`Se aumentó la cantidad de <b>${producto.nombre}</b> en el carrito (ahora hay ${item.cantidad}).`);
+      } else {
+        carritoStore.add({ productoId: productoId, cantidad: 1 }); // fila nueva
+        log(`Se agregó <b>${producto.nombre}</b> al carrito.`);
+      }
+    };
+  };
+
+  tx.oncomplete = () => renderCarrito();
+  tx.onerror = () => log('❌ No se pudo agregar el producto al carrito.');
+}
+
+// ---------- 7. pintar el carrito ----------
+async function renderCarrito(){
+  const tx = db.transaction(['carrito', 'productos'], 'readonly');
+  const carritoItems = await getAll(tx.objectStore('carrito'));
+  const cont = document.getElementById('carrito-list');
+  const totalEl = document.getElementById('carrito-total');
+
+  if (carritoItems.length === 0){
+    cont.innerHTML = '<p class="vacio">El carrito está vacío. Agrega algún producto del catálogo.</p>';
+    totalEl.textContent = '';
+    return;
+  }
+
+  let total = 0;
+  cont.innerHTML = '';
+  for (const item of carritoItems){
+    const producto = await getOne(tx.objectStore('productos'), item.productoId);
+    if (!producto) continue;
+    const subtotal = producto.precio * item.cantidad;
+    total += subtotal;
+
+    const row = document.createElement('div');
+    row.className = 'carrito-item';
+    row.innerHTML = `<span>${producto.nombre} × ${item.cantidad}</span><span>S/ ${subtotal.toFixed(2)}</span>`;
+    cont.appendChild(row);
+  }
+  totalEl.innerHTML = `Total: S/ ${total.toFixed(2)}`;
+}
+
+// ---------- 8. vaciar carrito ----------
+document.getElementById('vaciar-btn').addEventListener('click', () => {
+  const tx = db.transaction('carrito', 'readwrite');
+  tx.objectStore('carrito').clear();
+  tx.oncomplete = () => {
+    log('🗑️ Se vació el carrito por completo.');
+    renderCarrito();
+  };
+});
+
+// ---------- 9. arranque ----------
+(async function main(){
+  try{
+    setStatus('Abriendo / creando TiendaDB…');
+    await initDB();
+    setStatus('Base de datos lista ✅');
+    await seedProductos();
+    await cargarCatalogo();
+    await renderCarrito();
+  } catch(err){
+    setStatus('Error: ' + err);
+  }
+})();
+</script>
+</body>
+</html>
